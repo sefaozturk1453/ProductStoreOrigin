@@ -1,0 +1,246 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title></title>
+</head>
+<body>
+    ASP.NET Web Application (c#) proje açılır.
+    Proje adı "ProductStore"
+    Empty web.Api seçimleri gerçekleştirilir.
+    Models katmanına right click + add + class "Product" adında sınıf eklenir.
+    NOT: Model, uygulamanızda verileri temsil eden bir nesnedir.
+    ASP.NET Web API'sında, güçlü yazılan CLR nesnelerini model olarak kullanabilirsiniz
+    ve bunlar istemci için otomatik olarak XML veya JSON'a serileştirilir.
+
+    Sınıfa özellikler eklenir.
+
+    "namespace ProductStore.Models
+    {
+    public class Product
+    {
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public string Category { get; set; }
+    public decimal Price { get; set; }
+    }
+    }"
+
+    Repostory Eklemek, Product'ı koleksiyon olarak saklamamız gerekiyor.
+    Koleksiyonu hizmet uygulamamızdan ayırmak iyi bir fikirdir.
+    Bu şekilde, hizmet sınıfını yeniden yazmadan destek deposunu değiştirebiliriz.
+    Bu tür tasarıma the repository pattern "depo deseni" denir .
+    Depo için genel bir arabirim tanımlayarak başlayın.
+
+    Models katmanına rigth click + add + new item + interface "IProductRepository" adında arayüz eklenir.
+
+    Arayüzde koleksiyon olarak tutmak için.
+
+    namespace ProductStore.Models
+    {
+    public interface IProductRepository
+    {
+    IEnumerable<Product>
+    GetAll();
+    Product Get(int id);
+    Product Add(Product item);
+    void Remove(int id);
+    bool Update(Product item);
+    }
+    }
+
+    Şimdi Models klasörüne "ProductRepository" adlı başka bir sınıf ekleyin.
+    Bu sınıf IProductRepository interface ini uygular.
+
+    Models katmanına right click + add + class "ProductRepository" adıyla sınıf oluşturulur.
+
+    "ProductRepository" i "IProductRepository" interface inden türetilir.
+
+    namespace ProductStore.Models
+    {
+    public class ProductRepository : IProductRepository
+    {
+    private List<Product>
+        products = new List<Product>
+            ();
+            private int _nextId = 1;
+
+            public ProductRepository()
+            {
+            Add(new Product { Name = "Tomato soup", Category = "Groceries", Price = 1.39M });
+            Add(new Product { Name = "Yo-yo", Category = "Toys", Price = 3.75M });
+            Add(new Product { Name = "Hammer", Category = "Hardware", Price = 16.99M });
+            }
+
+            public IEnumerable<Product>
+    GetAll()
+    {
+    return products;
+    }
+
+    public Product Get(int id)
+    {
+    return products.Find(p => p.Id == id);
+    }
+
+    public Product Add(Product item)
+    {
+    if (item == null)
+    {
+    throw new ArgumentNullException("item");
+    }
+    item.Id = _nextId++;
+    products.Add(item);
+    return item;
+    }
+
+    public void Remove(int id)
+    {
+    products.RemoveAll(p => p.Id == id);
+    }
+
+    public bool Update(Product item)
+    {
+    if (item == null)
+    {
+    throw new ArgumentNullException("item");
+    }
+    int index = products.FindIndex(p => p.Id == item.Id);
+    if (index == -1)
+    {
+    return false;
+    }
+    products.RemoveAt(index);
+    products.Add(item);
+    return true;
+    }
+    }
+    }
+
+
+    Repository, listeyi yerel bellekte tutar.
+    Bu, bir öğretici için uygundur, ancak gerçek bir uygulamada,
+    verileri harici olarak, bir veritabanı veya bulut depolama alanında depolarsınız.
+    the repository pattern "Depo deseni", uygulamayı daha sonra değiştirmeyi kolaylaştıracaktır.
+
+
+
+
+    ASP.NET Web API'sında, controller istemciden HTTP isteklerini işleyen bir sınıftır.
+    Bu HTTP isteklerini işlemek için controller oluşturulur.
+
+    Controllers katmanına right click +  add + controller "ProductsController" isimli controller oluşturulur.
+
+    Modeller controller a  entegre edilir.
+    "using ProductStore.Models;"
+
+    ProductsController içine "IProductRepoository" örneğini içeren bir alan eklenir.
+
+    public class ProductsController : ApiController
+    {
+    static readonly IProductRepository repository = new ProductRepository();
+    }
+
+    Tüm Product içindekilerinin alınması için aşşağıdaki kod kullanılır.
+
+    public class ProductsController : ApiController
+    {
+    public IEnumerable<Product>
+    GetAllProducts()
+    {
+    return repository.GetAll();
+    }
+    // ....
+    }
+
+    Yöntem adı "Get" ile başlar, bu nedenle kural olarak GET istekleriyle eşleşir.
+    Ayrıca, yöntemin hiçbir parametresi olmadığından , yolda "id" segmenti içermeyen bir URI ile eşleşir.
+
+    public Product GetProduct(int id)
+    {
+    Product item = repository.Get(id);
+    if (item == null)
+    {
+    throw new HttpResponseException(HttpStatusCode.NotFound);
+    }
+    return item;
+    }
+
+    Bu yöntem adı "Get" ile de başlar, ancak yöntemin id adlı bir parametresi vardır.
+    Bu parametre URI yolunun "id" segmentiyle eşlenir.
+    ASP.NET Web API çerçevesi kimliği otomatik olarak parametre için doğru veri türüne ( int ) dönüştürür .
+
+    İçinCategoryConfigurationnesne yöntemi tipi bir istisna atar HttpResponseException eğer
+    kimliği geçerli değil. Bu istisna çerçeve tarafından 404 (Bulunamadı) hatasına dönüştürülecektir.
+
+    id yerine category ye göre get işlemi yapmak isteseydik.
+
+    "api/products?category=category"
+
+    public IEnumerable<Product>
+    GetProductsByCategory(string category)
+    {
+    return repository.GetAll().Where(
+    p => string.Equals(p.Category, category, StringComparison.OrdinalIgnoreCase));
+    }
+
+    POST işlemi
+
+    Aşşağıdaki Method adı "Post ..." ile başlar.
+    Yeni bir ürün oluşturmak için istemci bir HTTP POST isteği gönderir.
+
+    Yöntem dönüş türünün artık HttpResponseMessage olduğuna dikkat edin. 
+    Ürün yerine bir HttpResponseMessage döndürerek , 
+    durum kodu ve Konum başlığı dahil olmak üzere HTTP yanıt mesajının ayrıntılarını kontrol edebiliriz
+
+    public HttpResponseMessage PostProduct(Product item)
+    {
+    item = repository.Add(item);
+    var response = Request.CreateResponse<Product>
+    (HttpStatusCode.Created, item);
+
+    string uri = Url.Link("DefaultApi", new { id = item.Id });
+    response.Headers.Location = new Uri(uri);
+    return response;
+    }
+
+    PUT İşlemi
+
+    Yöntem adı "Put ..." ile başlar, bu nedenle Web API onu PUT istekleriyle eşleştirir.
+    Yöntem iki parametre alır, ürün kimliği ve güncellenmiş ürün.
+    İd parametresi URI yolundan alınır ve ürün parametre isteği vücuttan serisi kaldırılan edilir.
+    Varsayılan olarak, ASP.NET Web API çerçevesi rotadan basit parametre türlerini ve istek
+    gövdesinden karmaşık türleri alır.
+
+    public void PutProduct(int id, Product product)
+    {
+    product.Id = id;
+    if (!repository.Update(product))
+    {
+    throw new HttpResponseException(HttpStatusCode.NotFound);
+    }
+    }
+
+    DELETE İşlemi
+
+    DELETE isteği başarılı olursa, durumu tanımlayan bir varlık gövdesi ile 200 (Tamam)
+    durumunu döndürebilir; silme işlemi hala beklemedeyse durum 202 (Kabul edildi);
+    veya varlık gövdesi olmayan durum 204 (İçerik Yok).
+    Bu durumda, DeleteProduct metodu bir void dönüş türü vardır, bu nedenle ASP.NET Web API bunu otomatik
+    olarak durum kodu 204'e (İçerik Yok) dönüştürür.
+
+    public void DeleteProduct(int id)
+    {
+    Product item = repository.Get(id);
+    if (item == null)
+    {
+    throw new HttpResponseException(HttpStatusCode.NotFound);
+    }
+
+    repository.Remove(id);
+    }
+
+
+
+</body>
+</html>
